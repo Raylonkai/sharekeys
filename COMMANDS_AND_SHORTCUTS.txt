@@ -1,0 +1,299 @@
+SHAREKEYS - COMMANDS, RUN GUIDE, AND SHORTCUTS
+================================================
+
+WHAT THE PROGRAM DOES
+---------------------
+ShareKeys is a software KVM for a trusted local network. One Windows computer
+(the Host) captures its keyboard and mouse and controls one or more Windows
+Client computers. It sends input only; it does not stream screens.
+
+Live keyboard/mouse sharing is supported on Windows 10/11. Linux can build the
+program, run tests, and display the demo UI, but cannot capture or inject live
+input.
+
+
+REQUIREMENTS
+------------
+Windows live use:
+  - CMake 3.21 or newer
+  - Visual Studio 2022 with "Desktop development with C++"
+  - Qt 6 for MSVC 2022 x64 (Qt 5.15 with a matching compiler also works)
+  - An unlocked interactive Windows desktop
+  - Host and clients on the same trusted LAN
+  - TCP port 24820 allowed inbound on the Host (default)
+
+
+BUILD AND RUN ON WINDOWS
+------------------------
+Open a Visual Studio Developer PowerShell in the repository directory. Replace
+<version> with the installed Qt version/path.
+
+1. Put Qt tools on PATH:
+
+   $env:PATH = "C:/Qt/<version>/msvc2022_64/bin;$env:PATH"
+
+2. Configure:
+
+   cmake -S . -B build -A x64 -DCMAKE_PREFIX_PATH="C:/Qt/<version>/msvc2022_64"
+
+3. Build:
+
+   cmake --build build --config Release
+
+4. Run automated tests:
+
+   ctest --test-dir build -C Release --output-on-failure
+
+5. Copy the required Qt runtime files beside the executable:
+
+   & "C:/Qt/<version>/msvc2022_64/bin/windeployqt.exe" --release .\build\Release\sharekeys.exe
+
+6. Run ShareKeys:
+
+   .\build\Release\sharekeys.exe
+
+
+BUILD AND RUN WITHOUT THE GUI (CURRENT TWO-NODE STAGE)
+------------------------------------------------------
+This builds sharekeys-node.exe without Qt Widgets. It still uses Qt Core and Qt
+Network, so the Qt MSVC kit is currently required to compile it.
+
+Run on both Windows computers from a Visual Studio Developer PowerShell:
+
+   cmake -S . -B build-headless -A x64 -DSHAREKEYS_BUILD_UI=OFF -DSHAREKEYS_BUILD_HEADLESS=ON -DCMAKE_PREFIX_PATH="C:/Qt/<version>/msvc2022_64"
+   cmake --build build-headless --config Release
+   ctest --test-dir build-headless -C Release --output-on-failure
+   & "C:/Qt/<version>/msvc2022_64/bin/windeployqt.exe" --release .\build-headless\Release\sharekeys-node.exe
+
+Choose one shared key containing 16-256 characters. Replace the placeholder
+below with the same long random secret on both computers.
+
+On computer 1 (the computer with the physical keyboard and mouse):
+
+   .\build-headless\Release\sharekeys-node.exe --host --key "REPLACE-WITH-A-LONG-RANDOM-KEY"
+
+On computer 2, replace 192.168.1.10 with computer 1's LAN address:
+
+   .\build-headless\Release\sharekeys-node.exe --client --name node2 --address 192.168.1.10 --key "REPLACE-WITH-A-LONG-RANDOM-KEY"
+
+Safer alternative (keeps the key out of command history/process arguments):
+
+   .\build-headless\Release\sharekeys-node.exe --host --key-file .\sharekeys-key.txt
+   .\build-headless\Release\sharekeys-node.exe --client --name node2 --address 192.168.1.10 --key-file .\sharekeys-key.txt
+
+Allow inbound TCP port 24820 through Windows Firewall on computer 1. Stop either
+node with Ctrl+C. While the Host is running, Ctrl+Alt+Right cycles between the
+Host and node2, and Ctrl+Alt+Home immediately returns control to the Host.
+
+Headless command help:
+
+   .\build-headless\Release\sharekeys-node.exe --help
+
+Optional Host arguments:
+  --bind <address>                 Listen on a specific local address.
+  --port <1-65535>                Change the port (use the same value on Client).
+  --no-edge-switch                Use hotkey switching only.
+  --mirror-participant <name>     Preselect a Client for Ctrl+Alt+M; repeat to
+                                  preselect multiple Clients.
+
+Example Host with node2 selected for keyboard mirroring:
+
+   .\build-headless\Release\sharekeys-node.exe --host --key-file .\sharekeys-key.txt --mirror-participant node2
+
+
+CREATE A PORTABLE WINDOWS FOLDER
+--------------------------------
+The packaging script configures, builds, tests, installs, and runs windeployqt.
+It does not publish the program or change Windows Firewall settings.
+
+   .\scripts\package-windows.ps1 -QtRoot "C:\Qt\<version>\msvc2022_64"
+
+Optional Debug package:
+
+   .\scripts\package-windows.ps1 -QtRoot "C:\Qt\<version>\msvc2022_64" -Configuration Debug
+
+Output folder:
+
+   out\ShareKeys
+
+Run the packaged program:
+
+   .\out\ShareKeys\sharekeys.exe
+
+
+BUILD AND RUN THE LINUX DEMO
+----------------------------
+The Linux build is for development and UI demonstration only.
+
+   cmake -S . -B build -G Ninja
+   cmake --build build
+   ctest --test-dir build --output-on-failure
+   ./build/sharekeys --demo
+
+Build and test only the non-Qt core:
+
+   cmake -S . -B build-core -DSHAREKEYS_BUILD_UI=OFF
+   cmake --build build-core
+   ctest --test-dir build-core --output-on-failure
+
+
+PROGRAM COMMAND-LINE OPTIONS
+----------------------------
+  sharekeys --help
+      Display the Qt command-line help and exit.
+
+  sharekeys --version
+      Display program version 0.2.0 and exit.
+
+  sharekeys --demo
+      Open the interface with sample computers. No sockets are opened and no
+      keyboard or mouse input is captured.
+
+  sharekeys --smoke-test
+      Open the UI and close it automatically after about 500 ms. Intended for
+      build verification, not normal use.
+
+  sharekeys --smoke-test --screenshot path.png
+      Run the smoke test and save a screenshot before closing. The --screenshot
+      option is intended to be used with --smoke-test.
+
+Headless Linux UI check:
+
+   QT_QPA_PLATFORM=offscreen ./build/sharekeys --demo --smoke-test
+
+Headless check with screenshot:
+
+   QT_QPA_PLATFORM=offscreen ./build/sharekeys --demo --smoke-test --screenshot sharekeys.png
+
+
+HOW TO START A LIVE SESSION
+---------------------------
+1. Run the same ShareKeys executable on every Windows computer.
+
+2. On the computer whose physical keyboard and mouse will be used:
+   - Select Host.
+   - Leave "Host listen address" as 0.0.0.0 to listen on all IPv4 interfaces,
+     or enter the Host's LAN address.
+   - Leave the port as 24820 unless another port is required.
+   - Click "Start host".
+   - Copy the generated connection key.
+
+3. On each Client computer:
+   - Select Client.
+   - Enter a unique client name using 1-64 letters, numbers, underscores, or
+     hyphens. The name "host" is reserved.
+   - Enter the Host LAN IP address or hostname.
+   - Enter the same port and connection key.
+   - Click "Connect to host".
+
+4. On the Host, select a connected computer and click "Control selected
+   computer", use Ctrl+Alt+Right, or cross a configured touching screen edge.
+
+5. To use keyboard mirroring, check at least one connected client in the Mirror
+   column, then click "Start keyboard mirror" or press Ctrl+Alt+M.
+
+Important connection facts:
+  - The connection key must contain 16-256 characters.
+  - The key authenticates traffic but input traffic is not encrypted; use only
+    on a trusted LAN.
+  - The connection key is not saved. A new Host launch generates a new key.
+  - Reconnection after failure is deliberately manual.
+  - Up to 16 pending/connected clients are accepted by the Host runtime.
+
+
+GLOBAL KEYBOARD SHORTCUTS
+-------------------------
+These hotkeys work while Host sharing is running. Windows reserves them globally
+for ShareKeys. If another application has already registered one, Host startup
+fails with a hotkey error.
+
+  Ctrl + Alt + Home
+      Immediately return control to the Host. Also ends keyboard mirroring and
+      requests cleanup of held remote keys/buttons. This is the recovery key.
+
+  Ctrl + Alt + Right Arrow
+      Cycle through the Host and connected Clients in individual-control mode.
+      It has no effect while keyboard mirror mode is active.
+
+  Ctrl + Alt + M
+      Toggle keyboard mirror mode using the clients checked in the Mirror
+      column. At least one connected participant must be selected. Ending mirror
+      mode always returns control to the Host.
+
+
+MOUSE AND UI CONTROLS
+---------------------
+  Cross a touching screen edge
+      Transfer individual control according to the configured monitor layout.
+      "Switch at touching screen edges" must be enabled. Gaps or non-overlapping
+      edges prevent switching. There is a short 250 ms switching cooldown.
+
+  Return to host button
+      Same action as Ctrl+Alt+Home.
+
+  Next computer button
+      Same action as Ctrl+Alt+Right Arrow.
+
+  Start/End keyboard mirror button
+      Same action as Ctrl+Alt+M.
+
+  Control selected computer button
+      Give individual control to the selected connected Client.
+
+  Apply monitor layout button
+      Apply edited X/Y origins. Coordinates are native pixels and may be
+      negative. Only the X and Y table fields are editable.
+
+  Stop button
+      Stop the Host or Client session and release tracked held input where
+      possible.
+
+
+CONTROL BEHAVIOR TO REMEMBER
+----------------------------
+Individual control:
+  - Ordinary keyboard and mouse input goes only to the active computer.
+  - Host input is suppressed locally while a Client is active.
+  - Only one computer is active at a time.
+
+Keyboard mirror mode:
+  - Keyboard input goes to the Host and all selected Clients.
+  - Mouse movement, clicks, dragging, and scrolling stay on the Host only.
+  - Edge switching is inactive during mirroring.
+  - Results depend on the focused application and keyboard layout on each PC.
+
+Safety and limitations:
+  - Ctrl+Alt+Delete, login screens, and guaranteed control of elevated apps are
+    not supported by ordinary desktop input hooks.
+  - Locking the desktop, display changes, runtime failures, or disconnection can
+    stop the session and return control to the Host.
+  - Test first with text editors and disposable windows before using important
+    applications.
+
+
+QUICK TROUBLESHOOTING
+---------------------
+  "Live input sharing requires Windows"
+      Live mode was started on a non-Windows system. Use --demo there.
+
+  "A ShareKeys hotkey is already registered by another application"
+      Another program owns one of the three Ctrl+Alt shortcuts. Close or
+      reconfigure that program, then start the Host again.
+
+  "Cannot listen"
+      Check the bind address, port use, and Host firewall rule.
+
+  Client does not connect
+      Check Host address, port, firewall, matching connection key, and unique
+      client name.
+
+  Cannot mirror
+      Check at least one connected Client in the Mirror column first.
+
+  Edge switching does not work
+      Ensure edge switching is enabled and monitor rectangles actually touch
+      with an overlapping edge span; then apply the layout.
+
+  Input fails in an elevated application
+      Run at a compatible privilege level and confirm the Windows desktop is
+      unlocked. Windows security boundaries can prevent capture/injection.

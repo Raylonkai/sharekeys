@@ -72,13 +72,38 @@ ctest --test-dir build --output-on-failure
 `--smoke-test` opens and closes the window, optionally with `--screenshot path.png`.
 For headless UI checks, set `QT_QPA_PLATFORM=offscreen`.
 
-Core-only builds need no Qt:
+Core-only builds need no Qt (this does not produce a connectable node):
 
 ```sh
 cmake -S . -B build-core -DSHAREKEYS_BUILD_UI=OFF
 cmake --build build-core
 ctest --test-dir build-core --output-on-failure
 ```
+
+## Headless Windows nodes
+
+To build the runtime without Qt Widgets, enable the headless executable and
+disable the GUI. Qt Core and Qt Network are still required.
+
+```powershell
+cmake -S . -B build-headless -A x64 -DSHAREKEYS_BUILD_UI=OFF -DSHAREKEYS_BUILD_HEADLESS=ON -DCMAKE_PREFIX_PATH="C:/Qt/<version>/msvc2022_64"
+cmake --build build-headless --config Release
+ctest --test-dir build-headless -C Release --output-on-failure
+& "C:/Qt/<version>/msvc2022_64/bin/windeployqt.exe" --release .\build-headless\Release\sharekeys-node.exe
+```
+
+Start the host and client with the same 16-256 character connection key:
+
+```powershell
+# Computer 1
+.\build-headless\Release\sharekeys-node.exe --host --key-file .\sharekeys-key.txt
+
+# Computer 2 (use Computer 1's LAN address)
+.\build-headless\Release\sharekeys-node.exe --client --name node2 --address 192.168.1.10 --key-file .\sharekeys-key.txt
+```
+
+Run `sharekeys-node.exe --help` for bind, port, edge-switching, and mirror
+participant options. Press Ctrl+C to stop a node.
 
 ## Source layout
 
