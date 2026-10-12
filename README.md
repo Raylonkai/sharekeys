@@ -4,14 +4,14 @@ A network-based software KVM for trading desks. One keyboard and mouse connected
 
 Each computer runs its own applications and drives its own monitors. ShareKeys transfers input only; **screen streaming is outside scope**.
 
-This README describes the intended first version, not implemented functionality.
+The repository contains the host/client runtime and GUI. Automated checks cover routing and LAN sessions; live Windows input still requires the [Windows acceptance checks](docs/windows-validation.md).
 
 ## Scope and stack
 
 - **Windows only** for the first version.
 - **C++:** input capture, routing, networking, and Windows input injection.
 - **Qt:** configuration and status interface.
-- **Deskflow:** selected parts of its codebase will be reused; integration details remain to be decided.
+- **Deskflow:** the Windows mouse-button encoder reuses attributed Deskflow code; see [source and license notices](third_party/deskflow/README.md).
 - **Trusted LAN:** computers communicate directly within the local network.
 
 ## Control modes
@@ -94,3 +94,16 @@ The Qt interface configures computers, monitor layout, switching hotkeys, and mi
 - **Repeated keyboard workflows:** send the same shortcuts or text to prepared applications on several computers through keyboard-only mirroring.
 
 Mirror mode requires care for actions such as order entry: identical keys can produce different outcomes when application focus or state differs. It does not synchronize trades or confirm application results.
+
+## Development
+
+Build the same Qt executable for every Windows computer and select Host or Client.
+The application includes input routing, Windows capture/injection, authenticated
+TCP sessions, keyboard-only mirroring, monitor layout configuration, hotkeys, and
+disconnection recovery. The shared connection key authenticates traffic; input is
+not encrypted, so this version is for the trusted LAN.
+
+On Linux, `./build/sharekeys --demo` previews the interface without live input.
+
+See [development setup](docs/development.md), [architecture](docs/architecture.md),
+and the [documentation index](docs/README.md).

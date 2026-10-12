@@ -1,0 +1,16 @@
+/build*/
+/out/
+/.cache/
+/.idea/
+/.vs/
+*.user
+*.suo
+*.VC.db
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exe
+*.dll
+*.log
+.DS_Store
