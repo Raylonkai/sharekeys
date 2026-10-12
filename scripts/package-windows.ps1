@@ -4,6 +4,8 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
+$previousPath = $env:PATH
+$env:PATH = "$QtRoot/bin;$env:PATH"
 Push-Location $repo
 try {
     cmake -S . -B build -A x64 "-DCMAKE_PREFIX_PATH=$QtRoot"
@@ -20,4 +22,5 @@ try {
     Write-Host "Portable application is ready in out/ShareKeys"
 } finally {
     Pop-Location
+    $env:PATH = $previousPath
 }

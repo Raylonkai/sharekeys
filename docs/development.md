@@ -11,6 +11,7 @@ Qt 6 for MSVC 2022 x64. Qt 5.15 is also supported with a matching compiler.
 Use a Developer PowerShell terminal:
 
 ```powershell
+$env:PATH = "C:/Qt/<version>/msvc2022_64/bin;$env:PATH"
 cmake -S . -B build -A x64 -DCMAKE_PREFIX_PATH="C:/Qt/<version>/msvc2022_64"
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
