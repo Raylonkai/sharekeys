@@ -9,7 +9,9 @@ Runtime::Runtime(std::unique_ptr<InputBackend> backend, QObject* parent)
     : QObject(parent), backend_(backend ? std::move(backend) : make_input_backend()) {}
 Runtime::~Runtime() { stop(); }
 void Runtime::start(QJsonObject config) {
-    stop(); config_ = config; host_ = config.value("role").toString() == "host";
+    stop();
+    if (!injected_.empty()) { status_ = "Waiting to release held input; unlock the desktop and try again"; publish(); return; }
+    config_ = config; host_ = config.value("role").toString() == "host";
     const QString id = host_ ? "host" : config.value("id").toString();
     const QByteArray key = config.value("key").toString().toUtf8();
     const int port = config.value("port").toInt(24820);
@@ -132,7 +134,14 @@ void Runtime::transition(const Transition& change) {
     blocked_ = physical_;
     for (const auto& request : change.releases) {
         for (const auto& event : request.events) {
-            if (request.computer_id == "host") inject(event);
+            if (request.computer_id == "host") {
+                if (!inject(event)) {
+                    auto pending = event;
+                    if (auto key = std::get_if<KeyEvent>(&pending)) key->pressed = true;
+                    if (auto button = std::get_if<MouseButtonEvent>(&pending)) button->pressed = true;
+                    injected_.observe(pending);
+                }
+            }
             else send(request.computer_id, {{"type", "input"}, {"event", wire::encode_event(event)}});
         }
     }
@@ -166,7 +175,13 @@ void Runtime::stop() {
     if (timer_) { timer_->stop(); delete timer_; timer_ = nullptr; }
     engine_ = ControlEngine("host"); physical_.clear(); blocked_.clear();
     layout_.monitors.clear(); local_monitors_.clear(); reported_cursors_.clear();
-    running_ = false; status_ = "Stopped"; stopping_ = false; publish();
+    running_ = false; status_ = "Stopped"; stopping_ = false;
+    if (!injected_.empty()) {
+        timer_ = new QTimer(this); timer_->setInterval(200);
+        connect(timer_, &QTimer::timeout, this, &Runtime::tick); timer_->start();
+        status_ = "Stopped; waiting for desktop access to release held input";
+    }
+    publish();
 }
 bool Runtime::capture(const InputEvent& event) {
     if (!running_ || !host_) return true;
@@ -177,7 +192,12 @@ bool Runtime::capture(const InputEvent& event) {
     const auto decision = engine_.route(event);
     for (const auto& id : decision.clients) {
         if (!send(id, {{"type", "input"}, {"event", wire::encode_event(event)}})) {
-            recover("Input delivery failed; control returned to host"); return true;
+            recover("Input delivery failed; control returned to host");
+            // Do not introduce a new host press after quarantining it. A local
+            // release already in flight must still be allowed through.
+            if (auto key = std::get_if<KeyEvent>(&event)) return decision.deliver_to_host && !key->pressed;
+            if (auto button = std::get_if<MouseButtonEvent>(&event)) return decision.deliver_to_host && !button->pressed;
+            return false;
         }
     }
     return decision.deliver_to_host;
@@ -302,6 +322,7 @@ void Runtime::tick() {
         else { release_client_input(); if (upstream_) upstream_->close("Desktop unavailable"); }
         return;
     }
+    if (!injected_.empty() && host_) release_client_input();
     if (++ticks_ % 5 == 0) {
         const auto current = backend_->monitors(host_ ? "host" : config_.value("id").toString().toStdString());
         if (wire::encode_monitors(current) != wire::encode_monitors(local_monitors_)) {

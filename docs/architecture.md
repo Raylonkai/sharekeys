@@ -67,7 +67,7 @@ The GUI and input runtime are separate; hooks and network work share the runtime
 thread. This prevents GUI stalls from blocking capture, but an entire process hang
 or forced client termination is outside graceful recovery. Windows can silently
 remove a hook if its callback times out. Physical acceptance and load testing are
-required; this application is not certified for trading execution.
+required to validate the native backend on the intended hardware.
 
 ## Deskflow reuse and boundaries
 
